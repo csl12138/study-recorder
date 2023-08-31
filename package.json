@@ -1,17 +1,23 @@
 {
   "name": "webpaack-css",
   "version": "1.0.0",
-  "description": "",
+  "description": "webpack打包css",
   "main": "index.js",
   "scripts": {
+    "build": "npx webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "clean-webpack-plugin": "^4.0.0",
     "css-loader": "^6.7.2",
+    "html-webpack-plugin": "^5.5.3",
+    "mini-css-extract-plugin": "^2.7.6",
+    "style-loader": "^3.3.3",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.1"
-  }
+  },
+  "dependencies": {}
 }
