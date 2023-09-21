@@ -1,10 +1,11 @@
 {
-  "name": "webpaack-css",
+  "name": "webpack-splitChunk",
   "version": "1.0.0",
-  "description": "webpack打包css",
+  "description": "webpack-splitChunk",
   "main": "index.js",
   "scripts": {
     "build": "npx webpack",
+    "analyzer": "cross-env ANALYZER=true npx webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -17,7 +18,11 @@
     "mini-css-extract-plugin": "^2.7.6",
     "style-loader": "^3.3.3",
     "webpack": "^5.75.0",
+    "webpack-bundle-analyzer": "^4.9.1",
     "webpack-cli": "^5.0.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "jquery": "^3.7.1",
+    "loadsh": "^1.0.1"
+  }
 }
