@@ -3,7 +3,7 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const path = require('path');
 
-module.exports = {
+const config = {
     mode: 'development',
     // mode: 'production',
     devtool: false,
@@ -13,7 +13,7 @@ module.exports = {
     },
     output: {
         clean: true,
-        filename: '[name]:[chunkhash:5].js',
+        filename: '[name]-[chunkhash:5].js',
     },
     watch: true,
     watchOptions: {
@@ -44,12 +44,30 @@ module.exports = {
             // }
         ]
     },
+    // 优化相关配置项
+    optimization: {
+        splitChunks: {
+            chunks: 'all', // 分包策略针对所有chunk
+        }
+    },
     plugins: [
         new HtmlWebpackPlugin({
             template: './public/index.html',
             inject: 'body', // js文件放在<body>
-            chunks: 'all', // 你要把哪些chunk打包后的资源加到html中
+            chunks: ['page1'], // 你要把哪些chunk打包后的资源加到html中
+            filename: 'page1.html',
         }),
-        process.env.ANALYZER && new BundleAnalyzerPlugin(),
+        new HtmlWebpackPlugin({
+            template: './public/index.html',
+            inject: 'body', // js文件放在<body>
+            chunks: ['page2'], // 你要把哪些chunk打包后的资源加到html中
+            filename: 'page2.html',
+        }),
     ]
+};
+
+if (process.env.ANALYZER) {
+    config.plugins.push(new BundleAnalyzerPlugin());
 }
+
+module.exports = config;
