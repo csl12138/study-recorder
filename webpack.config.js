@@ -47,7 +47,16 @@ const config = {
     // 优化相关配置项
     optimization: {
         splitChunks: {
-            chunks: 'all', // 分包策略针对所有chunk
+            cacheGroups: {
+                // defaultVendors: {
+                //     idHint: "vendors",
+                //     test: /[\\/]node_modules[\\/]/,
+                //     priority: -10,
+                //     reuseExistingChunk: true,
+                // },
+                defaultVendors: false,
+                default: false,
+            },
         }
     },
     plugins: [
