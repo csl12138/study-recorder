@@ -1,5 +1,4 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 // const { RetryChunkLoadPlugin } = require('webpack-retry-chunk-load-plugin');
 
@@ -8,6 +7,9 @@ module.exports = {
     // mode: 'production',
     devtool: false,
     entry: './src/PageA',
+    output: {
+        clean: true,
+    },
     watch: true,
     watchOptions: {
         ignored: /node_modules/,
@@ -43,7 +45,6 @@ module.exports = {
             inject: 'body', // js文件放在<body>
             chunks: 'all', // 你要把哪些chunk打包后的资源加到html中
         }),
-        new CleanWebpackPlugin(),
         new MiniCssExtractPlugin(),
         // new RetryChunkLoadPlugin({
         //     cacheBust: `function() {
