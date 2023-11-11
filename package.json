@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "jquery": "^3.7.1",
-    "loadsh": "^1.0.1",
-    "moment": "^2.29.4"
+    "loadsh": "0.0.4"
   }
 }
