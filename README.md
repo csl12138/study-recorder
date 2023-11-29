@@ -2,343 +2,623 @@
 
 <!-- code_chunk_output -->
 
-- [webpack splitChunk分包](#webpack-splitchunk分包)
-- [参考链接：](#参考链接)
-- [前置](#前置)
-  - [webpack5中默认的分包策略](#webpack5中默认的分包策略)
-- [splitChunks.cacheGroups](#splitchunkscachegroups)
-  - [cacheGroups.test](#cachegroupstest)
-  - [cacheGroups.priority](#cachegroupspriority)
-  - [cacheGroups.reuseExistingChunk](#cachegroupsreuseexistingchunk)
-- [splitChunks.chunks](#splitchunkschunks)
-  - [async](#async)
-    - [chunks: async 示例1.1](#chunks-async-示例11)
-    - [chunks: async 示例1.2-1](#chunks-async-示例12-1)
-    - [chunks: async 示例1.2-2](#chunks-async-示例12-2)
-    - [chunks: async 示例1.3](#chunks-async-示例13)
-  - [initial](#initial)
-    - [chunks: initial 示例1.1](#chunks-initial-示例11)
-  - [all](#all)
-- [分包chunk的命名](#分包chunk的命名)
-  - [针对splitChunk分包的命名](#针对splitchunk分包的命名)
-  - [针对import()异步chunk的命名](#针对import异步chunk的命名)
+- [1、babel能独立工作吗？](#1-babel能独立工作吗)
+- [2、babel的作用是什么？](#2-babel的作用是什么)
+- [3、安装了babel就能自动转换代码吗？](#3-安装了babel就能自动转换代码吗)
+- [4、 @babel/polyfill、@babel/preset-ent、@babel/plugin-transform-runtime](#4--babelpolyfill-babelpreset-ent-babelplugin-transform-runtime)
+  - [@babel/preset-env](#babelpreset-env)
+    - [前置：corejs和@babel/polyfill之间的关系](#前置corejs和babelpolyfill之间的关系)
+    - [@babel/preset-env useBuiltIns配置](#babelpreset-env-usebuiltins配置)
+  - [@babel/plugin-transform-runtime](#babelplugin-transform-runtime)
+- [5、babel-plugin](#5-babel-plugin)
+  - [AST](#ast)
+  - [babel插件前置：@babel/parser](#babel插件前置babelparser)
+  - [babel插件前置：babel的历史演变](#babel插件前置babel的历史演变)
+  - [babel插件的分类](#babel插件的分类)
+  - [babel插件的写法](#babel插件的写法)
+- [6、babel模块化](#6-babel模块化)
+  - [modules: "auto"](#modules-auto)
+  - [modules: false](#modules-false)
+  - [modules: "commonjs" / "cjs"](#modules-commonjs--cjs)
 
 <!-- /code_chunk_output -->
 
 
-## webpack splitChunk分包
+## 1、babel能独立工作吗？
+> 可以，babel和postcss这些库一样既能与构建工具合作，也能独立工作。
 
-## 参考链接：
-https://juejin.cn/post/6844903680307625997?searchId=202310061134462AF5644FDA51D05F0721#heading-13
-https://segmentfault.com/a/1190000042093955#item-3
-https://www.cnblogs.com/kwzm/p/10315080.html
-
-## 前置
-### webpack5中默认的分包策略
-```js
-    // 将依赖模块（可以是npm包或者自己写的模块）分离出来作为单独的chunk
-    splitChunks: {
-        // async 针对异步加载的模块才进行分包
-        chunks: 'async',
-        //  将要被分离的模块，如果压缩前的体积小于xKB，那么不会被分离出来
-        minSize: production ? 20000 : 1000,
-        // 仅在剩余单个chunk时生效，避免分包后chunk体积过小，可以忽略，一般不手动配置
-        minRemainingSize: development ? 0 : undefined,
-        // 依赖模块被引用的次数>=1，才会被分离
-        minChunks: 1,
-        // 异步加载的最大并行请求数，如果>x，模块即便满足条件也不会被分离出来
-        maxAsyncRequests: production ? 30 : Infinity,
-        // 入口点的最大并行请求数，如果已经>x，模块即便满足条件也不会被分离出来
-        maxInitialRequests: production ? 30 : Infinity,
-        // 如果一个依赖的体积>xKB，将忽略minRemainingSize，maxAsyncRequests，maxInitialRequests配置，强制分离
-        enforceSizeThreshold: production 50000 : 30000,
-        // 被分离出的新chunk的命名连接符
-        automaticNameDelimiter: "-",
-        // 真正分离出chunk都是按照缓存组配置来的，按照优先级，如果一个模块满足缓存组的条件，那它将被划分到这个缓存组产生的chunk中
-        cacheGroups: {
-            defaultVendors: {
-                idHint: "vendors",
-                test: /[\\/]node_modules[\\/]/,
-                priority: -10,
-                reuseExistingChunk: true,
-            },
-            default: {
-                idHint: "",
-                minChunks: 2,
-                priority: -20,
-                reuseExistingChunk: true,
-            },
-        },
-    },
+```bash
+npm i -D @babel/core @babel/cli
+# cli
+babel 需要编译的文件路径 -o 编译后的文件路径
+babel 需要编译的文件夹路径 -d 编译后的文件夹路径
 ```
-以上配置描述了依赖的模块应该满足哪些规则才能被真正分离出去
+## 2、babel的作用是什么？
+> 不同的浏览器能识别的ES标准并不相同(低版本浏览器中没有Promise等API和箭头函数等新语法)。
+> 这就导致了如果我们代码中使用了一些ES新版本的api和语法有的浏览器认识，有的浏览器就不认识。
+> babel的出现就是为了解决这一问题，写代码时不用考虑语法api的兼容，最终由babel统一编译为能被各种浏览器识别的代码。
 
->注意：webpack中的按需加载语法 **import()** 本来就会被单独作为一个chunk打包；这个分包的行为和splitChunks整个配置**没有一毛钱关系**
-## splitChunks.cacheGroups
-> 缓存组，分包的重要依据，如果依赖模块命中某个缓存组的匹配规则(test)，并满足splitChunks.minSize, splitChunks.minChunks, splitChunks.chunks等条件（在缓存组中能重写覆盖这些值），那模块就会被加入到这个缓存组中，一个缓存组中可能存放着一个或多个依赖模块，最后这个缓存组将单独作为一个chunk，这些模块都被包含在这个chunk中；当然如果某个缓存组没有任何模块命中，最后的打包结果中不会单独生成chunk
-> 
-> 大白话来讲: 缓存组可以看成一个个待招生的班级，它有明确的规则该班级招收怎样的学生（依赖模块），依赖模块(学生)如果满足该班级（缓存组）的招生条件，那就被划分到班级中，最后的结果就是招到了学生的班级开课（单独作为chunk打包）
-### cacheGroups.test
->匹配模块的路径，比如只能是node_modules里的模块: 
->test: /[\\/]node_modules[\\/]/
-> 如果不配置，那么将匹配所有模块
-### cacheGroups.priority
-> 一个模块可能满足多个缓存组的条件，这时候使用哪个缓存组取决于priority的大小
-> 
-> 大白话：priority代表班级教学水平的高低，值越大教学水平越高，现在你满足两个或多个班级（缓存组）的招生条件，但你最终去哪呢？肯定是去教学水平好的呀（priority大的）
-### cacheGroups.reuseExistingChunk
-> 这个配置貌似没什么用，就算改成false，不管怎么试，都是会重用已经被分离出去的chunk
+## 3、安装了babel就能自动转换代码吗？
+> babel本身(@babel/core)只提供一些代码分析功能，**最终的代码转换依赖各种babel插件**。
 
-## splitChunks.chunks
-> chunks有三种配置，分别为：all / async / initial
+基于第一点中搭建好的环境，可以证实该结论：
+```javascript
+// 转换前的代码，用到了新的语法：const、箭头函数；新的api: Promise
+const a = 1;
+const func = () => { console.log(a); };
+const promise = new Promise(resolve => {
+    resolve(1);
+});
 
-### async
-> 默认配置，表示分包策略只作用于异步加载的chunk;
-> 一般正常来讲单页应用SPA，只有一个入口(entry)，那对应的就是一个chunk；多页应用有多个入口(entry)，那就会有多个chunk；
-> 需要注意的是import()异步导入的资源也会被视为单独的chunk打包，这是**异步chunk**的一种；
-> 这条规则限制了如果依赖模块不是属于异步chunk，那么不会对它应用任何分包策略
-#### chunks: async 示例1.1
-一个基本的例子
-```js
-// webpack.config.js 基于单入口打包
-entry: {
-    page1: './src/PageA',
+// 执行babel cli 得到编译后的结果
+const a = 1;
+const func = () => {
+  console.log(a);
+};
+const promise = new Promise(resolve => {
+  resolve(1);
+});
+
+```
+可以看见，不论是新的语法或者api都没有被转换成兼容代码
+语法和api的转换依赖各种插件和预设：`@babel/polyfill、@babel/preset-ent、@babel/plugin-transform-runtime`
+
+## 4、 @babel/polyfill、@babel/preset-ent、@babel/plugin-transform-runtime
+>
+### @babel/preset-env
+`@babel/preset-env`是babel众多预设中的其中一个。
+什么是预设？项目中使用到babel通常不会只有仅仅几个插件，如果这些插件都一个个安装配置将会非常繁琐。预设就是babel官方把一些常用的插件整合到一起统一提供。针对不同的JS框架或者语言都有对应的预设，比如`preset-react`、`preset-typescript`。
+接下来加入预设看一下转换后的结果：
+```shell
+# .babelrc
+{
+    "presets": ["@babel/preset-env"],
+    "plugins": []
 }
-
-// pageA/index.js
-import _ from 'loadsh';
-
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
-// 异步导入pageB
-import('../PageB/index');
-
-// pageB/index.js
-import $ from 'jquery';
-$('#main').css({ color: '#f40' });
+# .browserslistrc
+> 1%
+last 2 versions
+not ie <= 8
 ```
+```javascript
+// 转换前的代码，用到了新的语法：const、箭头函数；新的api: Promise
+const a = 1;
+const func = () => { console.log(a); };
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+
+// 转换后的代码
+"use strict";
+var a = 1;
+var func = function func() {
+  console.log(a);
+};
+var promise = new Promise(function (resolve) {
+  resolve(1);
+});
+```
+加入预设之后，**新的语法已经被转换，但是新的api仍未被处理。**
+如果需要转换api，则需要用的`@babel/preset-env`中`useBuiltIns`和`corejs`两个配置：
+#### 前置：corejs和@babel/polyfill之间的关系
+`corejs`身是一个独立的工具库，包含所有ES新版本api的实现，作为babel预设配置项时表示要使用的corejs版本。
+`@babel/polyfill`就是把`corejs@2`和`regenerator-runtime`(asynic await代码兼容转换工具库)整合到一起。
+但babel7.4.0版本后，@babel/polyfill在`@babel/preset-env中配置corejs: 3`时**不再生效**。官网推荐直接安装使用`corejs@3`版本和`regenerator-runtime`
+
+#### @babel/preset-env useBuiltIns配置
+
+1.  `useBuiltIns：false`：默认配置。只转换语法，不转换api。当useBuiltIns为false时，`corejs`配置不生效。
+2. `useBuiltIns："entry"`：根据配置的浏览器兼容条件(.browserslistrc)引入所有缺少的api；
+```json
+{
+  "presets": [
+        ["@babel/preset-env", {
+            "useBuiltIns": "entry",
+            "corejs": 2
+        }]
+    ],
+}
+```
+当配置为`entry`时需要指定corejs版本，默认为2；还需要在入口文件中手动添加`import '@babel/polyfill'`
+```javascript
+// 转换前的代码
+import '@babel/polyfill';
+const a = 1;
+const func = () => { console.log(a); };
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+
+// 转换后的代码
+"use strict";
+require("core-js/modules/es6.array.copy-within.js");
+require("core-js/modules/es6.array.fill.js");
+require("core-js/modules/es6.array.filter.js");
+require("core-js/modules/es6.array.find.js");
+require("core-js/modules/es6.array.find-index.js");
+require("core-js/modules/es7.array.flat-map.js");
+// ...一共引入了131行
+
+var a = 1;
+var func = function func() {
+  console.log(a);
+};
+var promise = new Promise(function (resolve) {
+  resolve(1);
+});
+
+```
+不符合兼容范围的api都会被引入进来
+注意：
+   - `@babel/polyfill`需要开发者手动安装，因为它本身会依赖`corejs@2`和`regenerator-runtime`所以这两个不用再额外安装。
+   - 如果配置`corejs: 3`，前面提到过`@babel/polyfill`只支持`corejs@2`版本并且已经过时，所以需要在项目中自己安装`corejs@3`和`regenerator-runtime`，并且在入口文件中添加`import "core-js/stable";`
+
+3. `useBuiltIns："usage"`：仅按需引入用到的需要兼容的新版本api，上一个配置中会引入很多没用到的api，这样会导致最终项目体积增大。
+
+当配置为"usage"时也需要指定corejs版本，不指定默认为`corejs: 2`；因为是按需引入，所以**不需要**在入口文件中添加`import '@babel/polyfill'`（该安装还是得安装）
+```json
+{
+  "presets": [
+        ["@babel/preset-env", {
+            "useBuiltIns": "usage",
+            "corejs": 2
+        }]
+    ],
+}
+```
+```javascript
+// 转换前的代码
+const a = 1;
+const func = () => { console.log(a); };
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+
+// 转换后的代码
+"use strict";
+require("core-js/modules/es6.object.to-string.js");
+require("core-js/modules/es6.promise.js");
+var a = 1;
+var func = function func() {
+  console.log(a);
+};
+var promise = new Promise(function (resolve) {
+  resolve(1);
+});
+```
+可以看到最终代码干净了不少
+再次强调：如果配置`corejs: 3`，那将不再依赖`@babel/polyfill`，需要开发者在项目中手动安装`corejs@3`和`regenerator-runtime`(不用在入口中引入，`"useBuiltIns": "usage"`会按需注入)
+
+### @babel/plugin-transform-runtime
+基于以下配置来看一个问题：
+```json
+{
+    "presets": [
+        ["@babel/preset-env", {
+            "useBuiltIns": "usage",
+            "corejs": 3
+        }]
+    ],
+    "plugins": []
+}
+```
+```javascript
+// 转换前的代码
+class A {};
+const func = () => { console.log(a); };
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+
+// 转换后的代码
+"use strict";
+require("core-js/modules/es.object.to-string.js");
+require("core-js/modules/es.promise.js");
+function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); Object.defineProperty(Constructor, "prototype", { writable: false }); return Constructor; }
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+var A = /*#__PURE__*/_createClass(function A() {
+  _classCallCheck(this, A);
+});
+;
+var func = function func() {
+  console.log(a);
+};
+var promise = new Promise(function (resolve) {
+  resolve(1);
+});
+```
+转换后的代码生成了很多_开头的helper辅助函数，这些函数会在不同文件的编译结果中重复声明，显然是不好的，应该把它们统一提取出来。利用`@babel/plugin-transform-runtime`插件就能实现这样的效果。
+```json
+{
+    "presets": [
+        ["@babel/preset-env", {
+            "useBuiltIns": "usage",
+            "corejs": 3
+        }]
+    ],
+    "plugins": ["@babel/plugin-transform-runtime"]
+}
+```
+```javascript
+// 转换后的代码
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+require("core-js/modules/es.object.to-string.js");
+require("core-js/modules/es.promise.js");
+var _createClass2 = _interopRequireDefault(require("@babel/runtime/helpers/createClass"));
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime/helpers/classCallCheck"));
+var A = /*#__PURE__*/(0, _createClass2.default)(function A() {
+  (0, _classCallCheck2.default)(this, A);
+});
+;
+var func = function func() {
+  console.log(a);
+};
+var promise = new Promise(function (resolve) {
+  resolve(1);
+});
+```
+现在所有_开头的辅助函数都被提取到了公共的helper中；
+但是`require("core-js/modules/es.promise.js");`这一行代码会在全局范围内引入promise，这样会导致全局变量污。如果是工具库的开发，肯定是不能污染全局变量的。
+`@babel/plugin-transform-runtime`的功能不仅仅包括公共函数的提取，也包含：
+
+1. **按需提供polyfill**（与`@babel/preset-env：useBuiltIns: "usage"`类似）
+2. **polyfill新版api时不污染全局**
+3. 提取公共helper函数
+
+**所以当我们在开发工具库或者不想让polyfill函数污染全局时：**
+```json
+{
+    "presets": [
+        ["@babel/preset-env"]
+    ],
+    "plugins": ["plugins": [["@babel/plugin-transform-runtime", {
+        "corejs": 3
+    }]]]
+}
+```
+```javascript
+// 转换后的代码
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime-corejs3/helpers/interopRequireDefault");
+var _promise = _interopRequireDefault(require("@babel/runtime-corejs3/core-js-stable/promise"));
+var _createClass2 = _interopRequireDefault(require("@babel/runtime-corejs3/helpers/createClass"));
+var _classCallCheck2 = _interopRequireDefault(require("@babel/runtime-corejs3/helpers/classCallCheck"));
+var A = /*#__PURE__*/(0, _createClass2.default)(function A() {
+  (0, _classCallCheck2.default)(this, A);
+});
+;
+var func = function func() {
+  console.log(a);
+};
+var promise = new _promise.default(function (resolve) {
+  resolve(1);
+});
+```
+`@babel/preset-env`使用默认配置`useBuiltIns: false`仅提供语法的转换，api层面的转换交给`@babel/plugin-transform-runtime`。
+这样一来代码中不再直接`require("core-js/modules/es.promise.js");`而是放在了新的变量`_promise `中。既实现了按需注入，也不会污染全局。注意：编译后的代码依赖`@babel/runtime-corejs3`所以需要自行`npm i -S @babel/runtime-corejs3`
+**在开发业务项目时，可以忽略全局污染问题，让**`@babel/plugin-transform-runtime`**仅提供提取helper功能：**
+```json
+{
+    "presets": [
+        ["@babel/preset-env", {
+            "useBuiltIns": "usage",
+            "corejs": 3
+        }]
+    ],
+    "plugins": ["@babel/plugin-transform-runtime"]
+}
+```
+
+## 5、babel-plugin
+babel工作流程简图：
 
 ![Alt text](md-imgs/image.png)
 
-打包结果分析：
-首先pageA是入口chunk所以单独打包；
-pageB作为异步chunk也单独打包；
-其次因为pageB是异步chunk并且内部的依赖模块jquery满足`defaultVendors`缓存组的条件(引用次数>=1, 在node_modules中等等)，jquery也将被加入到缓存组中，缓存组作为单独的chunk打包。
+### AST
 
-题外话，异步chunk分包的场景webpack是如何编译的：
-- 针对这里的异步导入：`import('../PageB/index')`; 本来是应该被编译为`__webpack.require__.e('pageB/index')`，
-  但是因为它的依赖jquery也被单独分包了，所以仅仅导入pageB/index.js是不够的，webpack编译时候还会帮我们加上这个异步chunk已经被分离出去的资源请求，最终变成 `Promise.all(/*! import() */[__webpack_require__.e("vendors-node_modules_jquery_dist_jquery_js"), __webpack_require__.e("src_PageB_index_js")]).then(__webpack_require__.bind(__webpack_require__, /*! ../PageB/index */ "./src/PageB/index.js"));`这一句代码做的事情就是先通过Promise.all把jquery和pageB的模块文件请求并安装到webpack本地的modules，然后执行pageB/index.js。
+**前置：ESTree规范**
+- AST最终是由js解析器解析而成，但要解析js语法，就需要制定明确的规范，比如函数声明、函数执行、变量声明等如何通过js树形对象表示出来
+- 如果没有AST规范，那么肯定无法造出js解析器；如果AST规范不统一，那么依赖不同解析器的工具库之间就不能互通有无
+- 而ESTree就定义了官方的AST解析规范，目前由社区和Mozilla共同维护，ESTree：https://github.com/estree/estree
 
-#### chunks: async 示例1.2-1
-基于1.1，如果pageA里面还同步引入了jquery打包结果会是什么呢？
+**一些知名的js解析器**
+1. `acorn`：webpack御用解析器，符合ESTree规范
+2. `@babel/parser`：babel官方解析器，前身babylon，fork于acron；改名@babel/parser后不再遵循ESTree规范，但其构建了非常强大的插件体系
+3. `uglify-js`：主要用于代码混淆压缩，自己实现了一套AST规范，也正因为是其内部规范不是标准的ESTree，ES6以后新语法的AST都不支持（不认识const 、箭头函数），所以没有办法压缩混淆ES6+代码
+  
+注意：至今仍没有明确的规定要求AST必须长什么样子，也没有要求所有解析器使用统一的AST规范；只要你能用预先制定好的规则（AST规范）描述源代码中的语法，并得到对应的树形结构（AST），那都是合理合适的，它是一个上层的抽象概念。比如Vue的模板语法，因为是框架内独有的模板，所以Vue内部实现了一套自己的AST规范与AST解析器，解析v- 指令等语法，最终得到框架模板专属的AST
+
+AST在线解析工具，支持多种解析器解析：https://astexplorer.net/
+
+### babel插件前置：@babel/parser
+前面提到过，babel的AST生成依赖`@babel/parser`解析器
+
 ```js
-// webpack.config.js 基于单入口打包
-entry: {
-    page1: './src/PageA',
-}
-
-// pageA/index.js
-import _ from 'loadsh';
-// 改动点
-import $ from 'jquery';
-$('#main').css({ fontSize: '18px' });
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
-// 异步导入pageB
-import('../PageB/index');
-
-// pageB/index.js
-import $ from 'jquery';
-$('#main').css({ color: '#f40' });
+// 测试babel-parser
+const parser = require('@babel/parser');
+const ast = parser.parse('const a = 1');
+console.log(ast);
 ```
+
+输出如下：
 
 ![Alt text](md-imgs/image-1.png)
 
-打包结果分析：
-- 本来pageB中异步导入的jquery是满足分包条件的（默认分包策略：1、属于异步chunk中的模块；2、满足node_modules缓存组；3、满足分包的大小限制和数量限制），但是入口chunk中同步导入了jquery，也就是说在当前分包规则下无论怎样入口chunk中都将包含jquery代码，所以pageB自然也不需要再将jquery分离出来，直接重用入口chunk的jquery模块就好，这也是webpack优化的一种
-- 假设webpack再把pageB中的jquery单独分离出来，那最终结果中pageA中会存在一份jquery代码，还存在一份单独的jquery代码，将导致打包结果中代码重复。那为什么pageA不能使用从pageB分离出来的jquery呢？因为pageA是**入口chunk**，并且强依赖jquery(如果没有jquery，pageA/index.js代码就会报错)，而pageB是异步加载的，webpack编译过程中不会执行代码是不清楚pageB到底什么时候会加载的，如果pageB迟迟没有加载，那异步的jquery也将不会被加载，但入口chunk又需要，那页面不就挂了
+==此外，`@babel/parser`支持解析的语法很多，但大多数默认为关闭状态，当需要使用时，可以用插件来打开对应的解析能力==
 
-#### chunks: async 示例1.2-2
-如果一个模块既被异步导入，又被同步导入，那最终的编译和打包结果会是什么？
 ```js
-// webpack.config.js 基于单入口打包
-entry: {
-    page1: './src/PageA',
-}
+// 在不适用任何插件时，以下的解析会报错，因为解析器现在还不认识ts语法
+const parser = require('@babel/parser');
+const ast = parser.parse('const a: number = 1'); // ts代码
+console.log(ast);
 
-// pageA/index.js
-import _ from 'loadsh';
-import $ from 'jquery';
-import '../PageB/index';
-
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
-
-// pageB/index.js
-import('jquery').then(Module => {
-    const $ = Module.default;
-    $('#main').css({ color: '#f40' });
-});
+// 添加plugin让@babel/parser打开ts语法解析功能
+const parser = require('@babel/parser');
+const ast = parser.parse('const a: number = 1', { plugins: ['typescript'] });
+console.log(ast);
 ```
-默认情况下分包策略只针对`async`异步chunk，所以这个配置不会命中任何分包策略，现在需要关注`import()`语法的分包在这种case下是否还会生效
+
+### babel插件前置：babel的历史演变
+
+ES官方每年都会推出新的语法、API和不计其数的新特性提案，并且这些提案采用一种基于stage的“渐进式”演进模式。
+
+一种新的语法orAPI从提案到变成正式标准，需要经历五个阶段。每个阶段的变动都需要由 TC39 委员会批准。
+
+- Stage 0 - Strawman（展示阶段）
+- Stage 1 - Proposal（征求意见阶段）
+- Stage 2 - Draft（草案阶段）
+- Stage 3 - Candidate（候选人阶段）
+- Stage 4 - Finished（定案阶段）
+
+在这种模式下会出现两个问题：
+  1. 优秀的提案进度缓慢，迟迟不能成为官方标准；
+  2. 浏览器的实现速度跟不上官方的脚步，有些已经成为标准的语法，在现代浏览器中依然没有获得支持；
+
+==babel的存在，使得该模式可以没有包袱的前进。==
+
+在babel7以前，**babel预设是以阶段区分的**，比如`babel-preset-stage-2`，处于草案阶段的都会被收入其中；
+当特性成为标准时会加入到`babel-preset-es20xx`中，但由于`babel-preset-esxxxx`每年都需要更新难以维护；所以babel7开始，babe将所有的`babel-preset-esxxxx`统一为`@babel/preset-env`；
+当特性成为最终标准时对应的插件也会被加入到`@babel/preset-env`
+
+并且插件不再以stage阶段来分类，而是用transform、syntax、proposal根据插件的功能（语义）分类来实现对不同特性的支持。
+
+### babel插件的分类
+可参考的文档: https://zhuanlan.zhihu.com/p/61780633
+
+以下插件均来自`@babel/preset-env`
+
+**1、plugin-syntax 语法插件：**
+
+帮忙往`@babel/parser`中添加plugins配置，这些插件并不具有功能性，因为对应的语法解析其实早已在`@babel/parser`中实现，这些插件只是帮忙打开相关的解析功能而已
 
 ![Alt text](md-imgs/image-2.png)
 
-最终的打包结果中只产生了一个JS文件，证明并没有任何模块被单独分离出去，原理与1.3示例相同
-
-#### chunks: async 示例1.3
-```js
-// webpack.config.js 基于单入口打包
-entry: {
-    page1: './src/PageA',
-}
-optimization: {
-    splitChunks: {
-        chunks: 'async'
-    }
-}
-
-// pageA/index.js
-import $ from 'jquery';
-$('#main').css({ fontSize: '18px' });
-import('../PageB/index');
-
-// pageB/index.js
-import $ from 'jquery';
-import _ from 'loadsh';
-
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
-
-$('#main').css({ fontSize: '20px' });
-```
+**2、plugin-transform/plugin-proposal 转换插件、提案插件：**
 
 ![Alt text](md-imgs/image-3.png)
-
-pageA因为是入口chunk所以单独打包一个模块；
-pageB是异步导入所以也作为异步chunk单独打包；
-pageB中的loadsh满足缓存组条件（位于异步chunk、在node_modules下...）单独被分离出来，jquery因为入口pageA中已经打包过了，所以不会再重复打包
-
-### initial
-#### chunks: initial 示例1.1
-可对比上述 **chunks: initial 示例1.3**，
-```js
-// webpack.config.js 基于单入口打包
-entry: {
-    page1: './src/PageA',
-}
-optimization: {
-    splitChunks: {
-        chunks: 'initial'
-    }
-}
-
-// pageA/index.js
-import $ from 'jquery';
-$('#main').css({ fontSize: '18px' });
-import('../PageB/index');
-
-// pageB/index.js
-import $ from 'jquery';
-import _ from 'loadsh';
-
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
-
-$('#main').css({ fontSize: '20px' });
-```
 ![Alt text](md-imgs/image-4.png)
 
-pageA因为是入口chunk所以单独打包一个模块；
-pageB是异步导入所以也作为异步chunk单独打包；
-pageA中的jquery满足缓存组条件（位于初始化chunk、在node_modules下...）单独被分离出来;
-pageB是异步chunk，不满足分包chunk条件，所以内部的任何模块都不会命中缓存组策略
+转换插件用于`@babel/core`，对AST抽象语法树进行操作，主要体现在将新版的代码写法转换为现在版本浏览器支持的写法。
 
-> 可以看出分包策略只对初始化chunk起作用（大白话来讲就是entry中的入口chunk）
+plugin-transform开头代表官方正式已成为标准的转换插件，plugin-proposal代表该插件的语法还处于提案阶段
 
-### all
-> 这个就是 initial + async，更大的chunks范围
+**提案插件**既可能是语法插件也可能是转换插件，因为它的目的就是让开发者能够抢先使用某些新语法或者新API，当它最终形成正式标准时，官方会根据其功能特性推出对应的语法插件或转换插件，甚至同时推出对应的语法插件和转换插件
 
-## 分包chunk的命名
-如何控制异步chunk(`import()`)以及缓存组chunk最后生成文件的命名呢？
+`@babel/preset-env`中都是已成为标准的语法，但为什么会出现plugin-proposal插件呢？
+- 在`@babel/preset-env`中的提案插件一定已经有了对应的正式版插件，一般情况下`@babel/preset-env`会很快在后续的版本迭代中移除掉提案插件，暂时不太清楚为什么babel官方要将提案插件和其对应的正式插件短暂地同时放在预设中，可能是为了避免插件阶段转换期间有bug
 
-### 针对splitChunk分包的命名
-> 通过`cacheGroups.name`精细控制，也可通过`cacheGroups.idHint`影响，==`name`的优先级高于`idHint`==
+### babel插件的写法
 ```js
-// webpack 配置
-entry: {
-    page1: './src/PageA',
-},
-output: {
-    clean: true,
-    filename: '[name]-[chunkhash:5].js',
-    chunkFilename: 'chunk/[name]-[chunkhash:10].js',
-},
-optimization: {
-    chunks: 'initial'
-    splitChunks: {
-        cacheGroups: {
-            defaultVendors: {
-                name: 'lib',
-                // idHint: "vendors",
-                test: /[\\/]node_modules[\\/]/,
-                priority: -10,
-                reuseExistingChunk: true,
-            },
-            default: false,
-        },
-    }
+module.exports = function({ types: babelTypes }) {
+  return {
+      // 钩子函数（写法和vue的自定义指令其实很像）
+      visitor: {
+          // 对type的操作
+          // path: 包含了当前节点的所有信息以及可操作节点的API
+          // state: 当前作用域内的信息
+          CallExpression(path, state) {}
+      }
+  }
+}
+```
+
+**proposal-function-bind简单实现**
+
+插件描述：https://babeljs.io/docs/babel-plugin-proposal-function-bind
+
+```js
+
+// 需要在babel配置中添加插件打开相应的语法解析
+"parserOpts": {
+  "plugins": ["functionBind"]
 }
 
-// pageA
-import _ from 'loadsh';
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
+module.exports = function () {
+  return {
+      visitor: {
+          CallExpression(path) {
+              const node = path.node;
+              const bindExpression = node.callee
+              if (bindExpression.type !== 'BindExpression') {
+                  return;
+              }
+              const bindContext = bindExpression.object.name;
+              const funcName = bindExpression.callee.name;
+              const replacement = `${funcName}.call(${bindContext})`; // test.call(obj)
+              path.replaceWithSourceString(replacement);
+          }
+      }
+  }
+}
 ```
-生成文件的最终命名规则都是根据output中的`filename`或者`chunkFilename`规则来的
 
-loadsh将命中缓存组策略被单独打包，splitChunks会使用`output.filename`的命名规则
+## 6、babel模块化
 
-`filename: '[name]-[chunkhash:5].js'`，`[name]`在分包缓存组单独作为chunk的场景下默认是==文件所在路径==，如果是针对entry中的入口chunk，那对应的就是==入口chunk的名称==
+上述示例中转换后的代码都是`commonjs`语法，如何控制转换后代码的模块化语法呢？
+> 通过`@babel/preset-env.modules`配置控制
 
-- 当指定`cacheGroups.name = 'lib'`，loadsh对应生成的文件名是`lib-06ed5.js`
-- 当指定`cacheGroups.idHint = 'vendors'`，loadsh对应生成的文件名是`vendors-node_modules_loadsh_index_js-b5c41.js`
-- 当不指定`cacheGroups.name`，也不指定`cacheGroups.idHint`，会将缓存组的key值**defaultVendors**加入到命名中`defaultVendors-node_modules_loadsh_index_js-10d39.js `
-  
-BTW: `output.filename`也可以加上文件路径，比如在cdn场景中，js文件统一放在static/js/*目录下，那么filename可以这样配置`static/js/[name]-[chunkhash:5].js`，这样就能将文件输出到相对于最终打包结果dist的指定目录中去
+`modules`配置默认为`'auto'`，常用的配置有`'cjs'`(`'commonjs'`别名)、`false`
 
-### 针对import()异步chunk的命名
+### modules: "auto"
+
+当配置为`modules: 'auto'`时，在==babel-cli环境==下的编译结果：
 ```js
-// webpack 配置
-entry: {
-    page1: './src/PageA',
-},
-output: {
-    clean: true,
-    filename: '[name]-[chunkhash:5].js',
-    chunkFilename: 'chunk/[name]-[chunkhash:10].js',
-},
-
-// pageA
-import _ from 'loadsh';
-const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
-const perfectPerson = _.omit(person, 'height');
-import('../PageB/index');
-// pageB
-// ...
+// .babelrc
+{
+  "presets": [
+        ["@babel/preset-env", {
+            "modules": "auto",
+            "corejs": 3,
+            "useBuiltIns": "usage"
+        }]
+    ],
+    "plugins": [["@babel/plugin-transform-runtime"]]
+}
 ```
 
-pageB因为是异步引入，将作为异步chunk被单独打包，使用`output.chunkFilename`的命名规则
+```js
+// a.js
+export const a = 'a';
+export const b = 'b';
 
-`chunkFilename: 'chunk/[name]-[chunkhash:10].js'`，`[name]`在异步chunk的场景中默认是==文件所在路径==
+// 1、转换前的代码，esModule模块化
+import { a } from './a.js';
+console.log('a', a);
+const a = 1;
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+class TestClass {};
+```
 
-- `import('../PageB/index')`，最终生成的文件名是`src_PageB_index_js-855a625c94.js`，**注意：** 因为命名规则中是指定生成到chunk/目录下，所以打包后的目录结构如下：
-  ![Alt text](md-imgs/image-6.png)
-- `import(/* webpackChunkName: "pageB" */ '../PageB/index')`，最终生成的文件名是`pageB-3bed9ee63d.js`，生成文件的位置同上，在chunk/下
+转换后的结果：esModule语法被转换为cjs模块化
 
+![Alt text](md-imgs/image-5.png)
+
+```js
+// 2、转换前的代码，cjs模块化
+const { a }  = require('./a');
+console.log('a', a);
+const a = 1;
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+class TestClass {};
+```
+
+转换后的结果：保持cjs模块化
+
+![Alt text](md-imgs/image-6.png)
+
+综上，在babel-cli运行环境下，`modules: 'auto'`无论转换前使用哪种模块化语法，都将被转换为cjs模块化；
+
+那么这个`'auto'`到底是怎么个自适应法呢？
+参考中文官网对该配置的解释：https://www.babeljs.cn/docs/babel-preset-env#modules
+该配置项会根据`caller`来决定最终使用哪一种模块化语法
+
+关于`caller`: https://www.babeljs.cn/docs/options#caller
+可简单理解为一个配置项，告诉babel当前环境对一些特性的支持程度
+
+![Alt text](md-imgs/image-7.png)
+
+**`caller`如何注入？**
+
+- 根据官网介绍，babel-cli环境无法通过命令行参数指定`caller`
+
+- 当通过编程方式调用babel时，可用参数传递
+  ```js
+  babel.transformFileSync("example.js", {
+    caller: {
+      name: "my-custom-tool",
+      supportsStaticESM: true,
+    },
+  });
+  ```
+- 通过构建工具(webpack/rollup等)使用babel时，`babel-loader`、`@rollup/plugin-babel`等会自动注入caller
+
+接下来在==webpack环境==中看看`modules: 'auto'`的表现：
+
+**前置：**
+**1、babel-loader注入的`caller`长啥样？**
+
+> ![Alt text](md-imgs/image-8.png)
+> 看上去babel-loader都会统一注入支持ESM，所以在webpack环境下，如果不更改babel预设中的modules配置，默认'auto', babel最终转换后的模块化语法都是esModule
+> 注意：上图基于webpack5、babel7
+
+**2、webpack模块化**
+
+> 各种编译器普遍都是兼容了esm和cjs两种模块化语法，但需要注意的是，在webpack中使用babel时，源代码是先交给babel-loader转换，最后webpack编译器拿到的源码已经是babel-loader转换过的；
+> 源码 -> babel-loader -> babel转换根据配置转为esm/cjs模块化代码 -> webpack根据esm/cjs模块化做不同的兼容处理(\_\_webpack_require\_\_)
+
+**3、tree-shaking**
+
+> 众所周知，esm才能支持tree-shaking，而cjs是不行的，所以babel-loader最终的转换结果对webpack的>tree-shaking也会有影响
+> tree-shaking的一些参考文章，更多可参考语雀，里面有相关知识点总结：
+> https://juejin.cn/post/7052901120209289246
+> https://juejin.cn/post/7105022295474700295
+
+webpack生产环境(`mode: production`)下，`optimization.minimize: true` 默认开启tree-shaking
+```js
+// 开发环境下如何打开tree-shaking
+optimization: {
+  usedExports: true, // 会为判断为dead code的代码片段打上标记
+  // minimize: true, // 压缩打包后的代码，并且会删除打上标记的代码（不压缩可以注释）
+},
+```
+
+**4、一个babel模块化转换的小细节**
+> 任何环境，babel都是没有提供类似`modules: "esmodule"`的配置，所以是没有办法能将你代码中的`const { a } = require('./a')` 转换为 `import { a } from './a'`的，哪怕是`modules: false`也不行，它只能保证babel帮你导入的垫片API使用esm模块化语法
+> 所以如果你决定使用tree-shaking的能力，那也得保证自身的业务代码==完全使用esm语法==，不能依赖编译器
+> 另一方面，`import { a } from './a'` 转换为 `const { a } = require('./a')` babel是可以办到的，`modules: "cjs"`
+
+接下来探究当配置为`modules: 'auto'`时，在==webpack环境==下的模块化编译结果
+```js
+// a.js
+export const a = 'a';
+export const b = 'b';
+
+// 入口文件
+import { a } from './a.js';
+console.log('a', a);
+const a = 1;
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+class TestClass {};
+```
+按照上文，webpack环境中babel-loader注入的`caller`是支持esm的，所以babel转换后的结果为：
+
+![Alt text](md-imgs/image-9.png)
+
+webpack最终生成的打包文件中，由于满足tree-shaking的条件，所以`export const b = 'b'`会被标记被dead code：
+
+![Alt text](md-imgs/image-10.png)
+
+当然上述例子中如果业务代码是如下，前面提到过babel是不具备cjs -> esm 的能力的，所以`const { a } = require('./a');`在babel的转换结果中将会被保留下来，后续的tree-shaking自然也会失效
+```js
+const { a } = require('./a'); // cjs写法
+console.log('a', a);
+const a = 1;
+const promise = new Promise(resolve => {
+    resolve(1);
+});
+class TestClass {};
+```
+
+到这，基本已经解释清楚了`modules: "auto"`配置的含义。
+
+### modules: false
+
+简单来讲，该配置具有如下作用
+
+- babel导入的垫片API将使用esm语法
+- **不改变业务代码中本身的模块化写法**，多次强调该配置不会将cjs -> esm，更不会将esm -> cjs
+
+### modules: "commonjs" / "cjs"
+
+- babel导入的垫片API将使用cjs语法
+- **如果业务代码是esm语法，改为cjs**

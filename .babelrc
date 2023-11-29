@@ -1,0 +1,15 @@
+{
+    "presets": [
+        ["@babel/preset-env", {
+            // "modules": false,
+            "modules": "auto",
+            "corejs": 3,
+            "useBuiltIns": "usage"
+        }]
+    ],
+    "plugins": [["@babel/plugin-transform-runtime"]]
+    // "plugins": ["./my-plugin.js", ["@babel/plugin-transform-runtime"]],
+    // "parserOpts": {
+    //     "plugins": ["functionBind"]
+    // }
+}
