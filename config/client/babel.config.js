@@ -8,5 +8,5 @@ module.exports = {
             runtime: 'automatic', // 自动导入jsx转换函数
         }], // jsx转换
     ],
-    plugins: ['@babel/plugin-transform-runtime'],
+    plugins: ['@babel/plugin-transform-runtime', 'react-refresh/babel'],
 };
