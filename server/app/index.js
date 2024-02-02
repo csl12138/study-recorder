@@ -3,17 +3,12 @@ import webpack from 'webpack';
 import webpackDevMiddleware from 'webpack-dev-middleware';
 import webpackHotMiddleware from 'webpack-hot-middleware';
 import path from 'path';
-// import { init } from '../../scripts/entry/buildEntry';
 import RecompileManager from './core/RecompileManager';
 import { serializeAssets } from './utils';
 import LazyCompile from './utils/lazyCompile'
 
 const CONFIG_PATH = path.resolve(process.cwd(), './config');
 const DIST_PATH = path.resolve(process.cwd(), './dist');
-
-// if (process.env.NODE_ENV === 'development') {
-//   init();
-// }
 
 const app = express();
 
@@ -25,12 +20,12 @@ const serverComplier = webpack(serverConfig);
 
 const clientDevInstance = webpackDevMiddleware(clientComplier, { serverSideRender: true, index: false });
 const serverDevInstance = webpackDevMiddleware(serverComplier, { writeToDisk: true });
-const recompileManager = new RecompileManager(clientComplier, serverComplier, clientDevInstance, serverDevInstance);
+const recompileManager = new RecompileManager(clientComplier, serverComplier);
 
 app.use(clientDevInstance).use(webpackHotMiddleware(clientComplier));
 app.use(serverDevInstance);
 
-app.get('/:page.html', async(req, res, next) => {
+app.get('/:page.html', async(req, _, next) => {
   const page = req.params?.page;
   const needLazyCompile = recompileManager.checkLazyPages(page);
   if (needLazyCompile) {
@@ -45,9 +40,7 @@ app.get('/:page.html', async(req, res, next) => {
 });
 
 app.get('/:page.html', async(req, res) => {
-  console.log('等待构建...');
   await recompileManager.waitCompile();
-  console.log('构建完成！');
   const module = require(path.resolve(DIST_PATH, serverConfig.output.filename));
   const render = module.default;
   console.log('assets.json', recompileManager.assets);
