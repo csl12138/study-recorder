@@ -5,16 +5,19 @@ import path from 'path';
 const DIST_PATH = path.resolve(process.cwd(), './dist');
 
 class RecompileManager {
-    constructor(clientComplier, serverComplier, clientDevInstance, serverDevInstance) {
+    constructor(clientComplier, serverComplier) {
         this.clientComplier = clientComplier;
         this.serverComplier = serverComplier;
-        this.clientDevInstance = clientDevInstance;
-        this.serverDevInstance = serverDevInstance;
 
         this.compilePromise = null;
         this.compileReady = null;
         this._compileCounter = 0; // 代理属性
         this.assets = { dirty: true }; // 资源清单
+        // 按需编译相关
+        this.lazyCompiledPages = {};
+        this.currentLazyPage = '';
+        this.whenLazyCompileStart = null;
+        this.isLazyCompileStarting = false;
         this.registerHooks();
     }
     get compileCounter() {
@@ -32,24 +35,32 @@ class RecompileManager {
     }
     registerHooks() {
         this.clientComplier?.hooks.compile.tap('clientCompile', () => {
-            this.compileCounter += 1;
             console.log('=========== 客户端开始编译 ===========');
+            this.compileCounter += 1;
+            if (this.isLazyCompileStarting) {
+                typeof this.whenLazyCompileStart === 'function' && this.whenLazyCompileStart();
+                this.whenLazyCompileStart = null;
+            }
         });
         this.clientComplier?.hooks.done.tap('clientDone', () => {
+            console.log('=========== 客户端构建完成 ===========');
             this.compileCounter -= 1;
             if (this.assets.dirty) {
                 this.getAssets();
             }
-            console.log('=========== 客户端构建完成 ===========');
         });
           
         this.serverComplier?.hooks.compile.tap('serverCompile', () => {
-            this.compileCounter += 1;
             console.log('=========== 服务端开始编译 ===========');
+            this.compileCounter += 1;
+            if (this.isLazyCompileStarting) {
+                typeof this.whenLazyCompileStart === 'function' && this.whenLazyCompileStart();
+                this.whenLazyCompileStart = null;
+            }
         });
         this.serverComplier?.hooks.done.tap('serverDone', () => {
-            this.compileCounter -= 1;
             console.log('=========== 服务端构建完成 ===========');
+            this.compileCounter -= 1;
         });
     }
     // 获取资源清单
@@ -74,13 +85,23 @@ class RecompileManager {
         return this.compilePromise;
     }
     ready() {
+        if (this.isLazyCompileStarting) {
+            this.currentLazyPage && (this.lazyCompiledPages[this.currentLazyPage] = true);
+            this.isLazyCompileStarting = false;
+            this.currentLazyPage = '';
+        }
         this.compileReady();
         this.resetCompilePromise();
         // 顺便帮忙把缓存清了
         delete require.cache[require.resolve(path.resolve(DIST_PATH, this.serverComplier.options.output.filename))];
     }
-    recompile() {
-
+    checkLazyPages(page) {
+        return !this.lazyCompiledPages[page];
+    }
+    willStartLazyRecompile(page, whenLazyCompileStart) {
+        this.currentLazyPage = page;
+        this.whenLazyCompileStart = whenLazyCompileStart;
+        this.isLazyCompileStarting = true;
     }
 };
 

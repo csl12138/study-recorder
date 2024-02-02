@@ -1,17 +1,17 @@
 // 需要webpack打包的渲染器
-import { StrictMode } from 'react';
+import { StrictMode, isValidElement } from 'react';
 import { renderToString } from 'react-dom/server';
-// 如果是按需编译不应该直接导入，应该通过中间变量获取
-import pages from "../../entries/server.page.entry";
+import pages from './server.page';
+// const pages = {};
 
 // 给数据，返回html字符串
 function render({ assets = {} }) {
-
     const RootComponent = () => {
+        console.log('pages === ', pages);
         const App = pages.page1;
         return (
             <StrictMode>
-                <App />
+                {isValidElement(App) ? App : <App />}
             </StrictMode>
         );
     };
@@ -36,7 +36,6 @@ function render({ assets = {} }) {
       </body>
     </html>
     `;
-
     return html;
 };
 

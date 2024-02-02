@@ -9,17 +9,17 @@ const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPl
 const path = require('path');
 const baseConfig = require('../webpack.base.config');
 const babelConfig = require('./babel.config');
-// const TestEntryPlugin = require('../plugins/TestEntryPlugin');
+const { getClientWebpackEntry } = require('../../scripts/entry/buildEntry');
 
 const CWD = process.cwd();
 
 const config = {
     mode: 'development',
     devtool: 'eval',
-    entry: {
-        page1: ['webpack-hot-middleware/client', path.resolve(__dirname, '../../entries/client/page1')],
-    },
-    watch: false,
+    // entry: {
+    //     page1: ['webpack-hot-middleware/client', path.resolve(__dirname, '../../entries/client/page1')],
+    // },
+    entry: getClientWebpackEntry(),
     watchOptions: {
         ignored: ['**/dist/**', '**/node_modules', '**/package.json', '**/package-lock.json', '**/server/**'],
     },
@@ -57,7 +57,6 @@ const config = {
             filename: 'css/[name].css',
             chunkFilename: 'css/[name].css'
         }),
-        // new TestEntryPlugin(),
     ],
 };
 

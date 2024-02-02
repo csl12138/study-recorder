@@ -4,9 +4,11 @@
   "description": "简单的多页面react SSR demo",
   "main": "index.js",
   "scripts": {
-    "dev": "npm-run-all --parallel dev:build:server dev:start",
-    "dev:start": "nodemon --signal SIGHUP --watch dist/server/app-babel-compiled/ --inspect dist/server/app-babel-compiled/index.js",
-    "dev:build:server": "babel --config-file ./config/server/babel.config.js server/app --watch --out-dir dist/server/app-babel-compiled"
+    "dev": "cross-env NODE_ENV=development npm-run-all --parallel dev:build:server dev:server",
+    "dev:server": "nodemon --signal SIGHUP --watch dist/server/app-babel-compiled/ --exec \"npm run dev:start\"",
+    "dev:build:server": "babel --config-file ./config/server/babel.config.js server/app --watch --out-dir dist/server/app-babel-compiled",
+    "dev:start": "npm run build:entry && node --inspect dist/server/app-babel-compiled/index.js",
+    "build:entry": "node --inspect scripts/entry/index.js"
   },
   "keywords": [],
   "author": "",

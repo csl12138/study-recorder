@@ -8,7 +8,7 @@ const App = () => {
 
     return (
         <>
-            <h1>my react-bootstrap 多页面SSR</h1>
+            <h1>my react-bootstrap 多页面SSR 该页面已按需编译</h1>
             <div className={style.red}>测试css modules {res}</div>
             <Text />
             <Input />

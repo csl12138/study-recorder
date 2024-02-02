@@ -4,19 +4,18 @@ const nodeExternal = require('webpack-node-externals');
 const path = require('path');
 const babelConfig = require('./babel.config');
 const baseCOnfig = require('../webpack.base.config');
-
 const CWD = process.cwd();
+
 
 const config = {
     mode: 'development',
-    devtool: 'eval-cheap-module-source-map',
+    // devtool: 'eval-cheap-module-source-map',
     target: 'node',
     externals: [nodeExternal()],
     watchOptions: {
         ignored: ['**/dist/**', '**/node_modules', '**/package.json', '**/package-lock.json', '**/server/!renderer'],
     },
     entry: {
-        // 按需编译这里还应该要加上entries/server.page.entry.js
         renderer: [path.resolve(__dirname, '../../server/renderer')],
     },
     output: {
