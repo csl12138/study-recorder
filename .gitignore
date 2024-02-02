@@ -1,6 +1,6 @@
 dist/
 node_modules
 entries/
-server/app/renderer/server.page.js
+server.page.js
 .DS_Store
 .crossnote
