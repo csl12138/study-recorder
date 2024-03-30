@@ -1,6 +1,7 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+const TestPlugin = require('./plugin');
 const path = require('path');
 
 const config = {
@@ -70,6 +71,7 @@ const config = {
             chunks: ['page1'], // 你要把哪些chunk打包后的资源加到html中
             filename: 'page1.html',
         }),
+        new TestPlugin(),
         // new HtmlWebpackPlugin({
         //     template: './public/index.html',
         //     inject: 'body', // js文件放在<body>

@@ -22,6 +22,7 @@
 - [分包chunk的命名](#分包chunk的命名)
   - [针对splitChunk分包的命名](#针对splitchunk分包的命名)
   - [针对import()异步chunk的命名](#针对import异步chunk的命名)
+- [补充：webpack是如何控制JS模块的加载顺序的？](#补充webpack是如何控制js模块的加载顺序的)
 
 <!-- /code_chunk_output -->
 
@@ -342,3 +343,116 @@ pageB因为是异步引入，将作为异步chunk被单独打包，使用`output
   ![Alt text](md-imgs/image-6.png)
 - `import(/* webpackChunkName: "pageB" */ '../PageB/index')`，最终生成的文件名是`pageB-3bed9ee63d.js`，生成文件的位置同上，在chunk/下
 
+## 补充：webpack是如何控制JS模块的加载顺序的？
+> 在最最简单的场景下，只会有一个入口JS文件，但在项目中，往往都是伴随着splitChunk分包的，一个页面会包含多个JS文件，这时候如何控制这些JS文件之间的加载顺序呢？
+
+有如下JS，loadsh将会单独分开打包为lib，必须先将lib.js加载完毕才能加载主文件Js,不然会因为找不到loadsh而报错
+```js
+import _ from 'loadsh';
+
+const person = { name: 'ccc', age: 18, look: 'handsome', height: 'normal' };
+const perfectPerson = _.omit(person, 'height');
+console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
+```
+打包后的结果
+![Alt text](md-imgs/image-7.png)
+
+当我们手动把lib.js blocked掉之后，会发现page1.js里面的代码也不会执行，接下来来探究一下其中的原理
+
+首先，在page1.js的打包文件中，由于我们loadsh被单独拆分出去需要先加载，所以入口文件page1.js中的启动入口是这样写的:
+```js
+// startup
+// Load entry module and return exports
+// This entry module depends on other loaded chunks and execution need to be delayed
+var __webpack_exports__ = __webpack_require__.O(undefined, ["lib"], () => (__webpack_require__("./src/PageA/index.js")))
+__webpack_exports__ = __webpack_require__.O(__webpack_exports__);
+```
+
+在入口文件中，可以看到执行了两次`__webpack_require__.O`，第一次执行因为传了chunkIds相当于往deferred中添加一项依赖检查，第二次执行才是真正的开始
+
+`__webpack_require__.O`函数定义：
+```js
+ 	(() => {
+        // 这个是用来记录依赖信息
+ 		var deferred = [];
+ 		__webpack_require__.O = (result, chunkIds, fn, priority) => {
+            // 如果参数传了chunkIds，那么只会往deferred里面加东西，加完就return
+ 			if(chunkIds) {
+                // 这个代表的是优先级，越小越靠前，如果都是0，那就相当于是push
+ 				priority = priority || 0;
+ 				for(var i = deferred.length; i > 0 && deferred[i - 1][2] > priority; i--) deferred[i] = deferred[i - 1];
+                /**
+                 * chunkIds: ['lib'] 前置依赖的js文件
+                 * fn: 当前置依赖的js文件均准备就绪后要执行的cb
+                 * priority 当前依赖的优先级，越小越靠前
+                */
+ 				deferred[i] = [chunkIds, fn, priority];
+ 				return;
+ 			}
+            // 不带chunkIds才会走到这，相当于上述入口的第二次调用
+ 			var notFulfilled = Infinity; // 这个是用来记录当前失败deferred的priority;
+            // 外层遍历deferred，这里面每一项记录的是具体的依赖信息
+ 			for (var i = 0; i < deferred.length; i++) {
+ 				var [chunkIds, fn, priority] = deferred[i];
+ 				var fulfilled = true; // 标记当前chunkIds中的依赖是否全部加载成功
+                // 内层遍历当前chunkIds：['lib']
+ 				for (var j = 0; j < chunkIds.length; j++) {
+                    /**
+                     * priority & 1 === 0 貌似是用来区分奇偶的？，偶数必等于0，暂时不太明白这里的含义
+                     * notFulfilled >= priority 越靠前的deferred越小，>= 说明这个在失败deferred的后面，也没搞懂为什么要这样判断
+                     * Object.keys(....)，挨个判断chunkIds里面的文件有没有加载成功
+                     * 一般情况下__webpack_require__.O上只挂了一个函数用于检查传进来的chunkId是否ready：
+                     * __webpack_require__.O.j = (chunkId) => (installedChunks[chunkId] === 0);
+                    */
+ 					if ((priority & 1 === 0 || notFulfilled >= priority) && Object.keys(__webpack_require__.O).every((key) => (__webpack_require__.O[key](chunkIds[j])))) {
+                        // 这个文件已经加载成功，移除
+ 						chunkIds.splice(j--, 1);
+ 					} else {
+                        // 加载失败
+ 						fulfilled = false;
+ 						if(priority < notFulfilled) notFulfilled = priority;
+ 					}
+ 				}
+                // 经过内层对chunkIds的循环检查，如果是true证明chunkIds中包含的所有模块都已经加载就绪，可以执行回调并把当前依赖项移除
+ 				if(fulfilled) {
+ 					deferred.splice(i--, 1)
+                    // 执行回调，在上述在这里才开始加载入口的page1.js文件，如果lib.js加载失败了，根本都不会触发这个，所以page1.js也不会执行
+ 					var r = fn();
+ 					if (r !== undefined) result = r;
+ 				}
+ 			}
+ 			return result;
+ 		};
+ 	})();
+```
+
+基本的依赖检查逻辑盘完，有一个问题就是如果第一次lib.js加载失败了，后续再手动请求一次lib.js，能不能成功串联起后续的流程呢？
+
+splitChunk拆分出去的模块和异步导入的模块都是通过`webpackJsonpCallback`安装模块到本地，在执行`webpackJsonpCallback`的过程中，会触发对`__webpack_require__.O`的再次调用
+```js
+var webpackJsonpCallback = (_, data) => {
+    var [chunkIds, moreModules] = data;
+    // add "moreModules" to the modules object,
+    // then flag all "chunkIds" as loaded and fire callback
+    var moduleId, chunkId, i = 0;
+    // 安装未安装的模块
+    if(chunkIds.some((id) => (installedChunks[id] !== 0))) {
+        for(moduleId in moreModules) {
+            if(__webpack_require__.o(moreModules, moduleId)) {
+                __webpack_require__.m[moduleId] = moreModules[moduleId];
+            }
+        }
+    }
+    for(;i < chunkIds.length; i++) {
+        chunkId = chunkIds[i];
+        // 这个是针对异步导入的情况，会在installedChunks上保存promise，splitChunk拆包是不会往installedChunks上提前挂东西的
+        if(__webpack_require__.o(installedChunks, chunkId) && installedChunks[chunkId]) {
+            installedChunks[chunkId][0]();
+        }
+        // 异步导入和拆分都共用，标志模块加载完成
+        installedChunks[chunkId] = 0;
+    }
+    // 重新调用依赖检查函数，在这里面因为lib.js已经是0（加载成功了）所以会触发fn的cb加载主文件，如果是异步导入的js并且文件依赖都加载成功的情况下，什么都不会做
+    return __webpack_require__.O();
+}
+```

@@ -8,7 +8,7 @@ console.log('😎😎😎 ~ perfectPerson:', perfectPerson);
 
 // $('#main').css({ fontSize: '18px' });
 // import('../PageB/index');
-import(/* webpackChunkName: "pageB" */ '../PageB/index');
+// import(/* webpackChunkName: "pageB" */ '../PageB/index');
 
 // 异步导入loadsh
 // import('loadsh').then(Module => {
