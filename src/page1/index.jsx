@@ -1,6 +1,7 @@
 import { add } from '@/common/utils';
 import Input from './components/Input';
 import Text from './components/Text';
+import ServerClient from './components/ServerClient';
 import style from './index.css';
 
 const App = () => {
@@ -12,6 +13,7 @@ const App = () => {
             <div className={style.red}>测试css modules {res}</div>
             <Text />
             <Input />
+            <ServerClient />
         </>
     );
 };

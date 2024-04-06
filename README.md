@@ -1,3 +1,6 @@
+## 如何跑起来
+- 确保已经全局安装npm-run-all nodemon
+- node>=14
 ## 踩坑记录
 **为什么server端不全量打包，只打包renderer？**
 > server端全量打包会导致如果改动了任何页面的jsx代码，server和client肯定会重新编译打包，而server端肯定会生成新的dist/server/index.js，这样nodemon就会重新运行index.js，进而重启整个server，那与client的热更新就会断开，如果不刷新页面，热更新将失效；所以那就意味着如果打包整个server，每次更改页面代码，server重启，热更新失效，必须手动刷新才能看见最新的代码效果；所以只打包render有关逻辑，server重新打包并不会影响整个server app，最大限度减少server端重启次数，保证热更新，当然如果修改了server app相关的代码，肯定是会重启server的，无法避免。但现在因为纯node代码损失了很多新特性(可选链啥的)，并且只能使用cjs，写起来比较割裂，**打算把server中未经webpack编译的模块用babel编译一遍**

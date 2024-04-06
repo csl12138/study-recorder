@@ -102,6 +102,8 @@ class RecompileManager {
         this.currentLazyPage = page;
         this.whenLazyCompileStart = whenLazyCompileStart;
         this.isLazyCompileStarting = true;
+        // 按需编译了新路由后，需要更新assets
+        this.assets.dirty = true;
     }
 };
 
